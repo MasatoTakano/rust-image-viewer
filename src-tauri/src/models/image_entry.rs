@@ -39,3 +39,52 @@ pub fn is_supported_image_extension(path: &std::path::Path) -> bool {
         None => false,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_supported_extensions() {
+        let supported = [
+            "test.jpg",
+            "test.jpeg",
+            "test.png",
+            "test.gif",
+            "test.bmp",
+            "test.webp",
+            "test.avif",
+        ];
+        for name in &supported {
+            assert!(
+                is_supported_image_extension(&PathBuf::from(name)),
+                "should support: {}",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn test_unsupported_extensions() {
+        let unsupported = ["test.txt", "test.pdf", "test.mp4", "test.zip"];
+        for name in &unsupported {
+            assert!(
+                !is_supported_image_extension(&PathBuf::from(name)),
+                "should not support: {}",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn test_case_insensitive() {
+        assert!(is_supported_image_extension(&PathBuf::from("test.JPG")));
+        assert!(is_supported_image_extension(&PathBuf::from("test.Png")));
+    }
+
+    #[test]
+    fn test_no_extension() {
+        assert!(!is_supported_image_extension(&PathBuf::from("noext")));
+    }
+}
