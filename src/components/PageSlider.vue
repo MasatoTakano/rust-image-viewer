@@ -5,8 +5,8 @@
     <input
       type="range"
       :min="1"
-      :max="total"
-      :value="current + 1"
+      :max="entries.length"
+      :value="currentIndex + 1"
       @input="onSlide"
     />
   </div>
