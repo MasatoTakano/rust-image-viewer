@@ -21,6 +21,7 @@ function createDefaults(): AppSettings {
     key_throttle_ms: 80,
     wheel_throttle_ms: 150,
     display_mode: "single",
+    resize_filter: "catmull_rom",
   };
 }
 

@@ -17,7 +17,6 @@ export function useKeyBindings() {
   let onToggleSettings: (() => void) | null = null;
   let isSettingsOpen: (() => boolean) | null = null;
   let lastActionTime = 0;
-  let actionPending = false;
 
   function setKeyBindings(bindings: KeyBindings) {
     keyBindings = bindings;
@@ -33,13 +32,9 @@ export function useKeyBindings() {
 
   function throttleAction(fn: () => void) {
     const now = Date.now();
-    if (actionPending || now - lastActionTime < settings.value.key_throttle_ms) return;
-    actionPending = true;
+    if (now - lastActionTime < settings.value.key_throttle_ms) return;
     lastActionTime = now;
-    requestAnimationFrame(() => {
-      fn();
-      actionPending = false;
-    });
+    fn();
   }
 
   function matchesBinding(combo: string, bindings: string[]): boolean {

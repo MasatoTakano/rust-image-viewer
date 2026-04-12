@@ -21,6 +21,7 @@ export interface AppSettings {
   key_throttle_ms: number;
   wheel_throttle_ms: number;
   display_mode: string;
+  resize_filter: string;
 }
 
 export interface KeyBindings {

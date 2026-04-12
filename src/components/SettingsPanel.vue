@@ -53,6 +53,18 @@
               <input type="number" v-model.number="wheelThrottleMs" min="0" max="1000" />
             </td>
           </tr>
+          <tr>
+            <td>リサイズフィルタ</td>
+            <td>
+              <select v-model="resizeFilter">
+                <option value="nearest">Nearest (最高速)</option>
+                <option value="triangle">Triangle (高速)</option>
+                <option value="catmull_rom">CatmullRom (バランス)</option>
+                <option value="gaussian">Gaussian (高画質)</option>
+                <option value="lanczos3">Lanczos3 (最高画質)</option>
+              </select>
+            </td>
+          </tr>
         </table>
         <div class="settings-actions">
           <button @click="close">閉じる</button>
@@ -93,6 +105,7 @@ const bgColor = ref(settings.value.background_color);
 const preloadRange = ref(settings.value.preload_range);
 const keyThrottleMs = ref(settings.value.key_throttle_ms);
 const wheelThrottleMs = ref(settings.value.wheel_throttle_ms);
+const resizeFilter = ref(settings.value.resize_filter);
 
 const recordingKey = ref<keyof KeyBindings | null>(null);
 
@@ -105,6 +118,7 @@ watch(
       preloadRange.value = settings.value.preload_range;
       keyThrottleMs.value = settings.value.key_throttle_ms;
       wheelThrottleMs.value = settings.value.wheel_throttle_ms;
+      resizeFilter.value = settings.value.resize_filter;
       recordingKey.value = null;
     }
   }
@@ -138,6 +152,7 @@ async function handleSave() {
     preload_range: preloadRange.value,
     key_throttle_ms: keyThrottleMs.value,
     wheel_throttle_ms: wheelThrottleMs.value,
+    resize_filter: resizeFilter.value,
   };
   try {
     await save(newSettings);
@@ -216,6 +231,21 @@ async function handleSave() {
 }
 
 .settings-content input:focus {
+  outline: none;
+  border-color: #4a9eff;
+}
+
+.settings-content select {
+  background-color: #2d2d2d;
+  border: 1px solid #555;
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  width: 100%;
+  font-size: 0.9em;
+}
+
+.settings-content select:focus {
   outline: none;
   border-color: #4a9eff;
 }
