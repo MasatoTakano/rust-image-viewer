@@ -2,38 +2,40 @@
 
 Rust + Tauri + Vue 3 による軽量デスクトップ画像ビューアです。フォルダ・ZIP・RAR アーカイブから画像を読み込み、高速に表示します。
 MangaMeeyaの代替として作成し、使用しています。
+現在は Electron + Vue 3 構成に移行しています。
 
 ## 動作環境
 
 - Windows 10 / 11 (x64)
-- Rust 1.94+
 - Node.js 22+
 - npm 11+
+
+## 開発
+
+```bash
+npm install
+npm run electron:dev
+```
 
 ## ビルド
 
 ```bash
-npm install
-npm run tauri build
+npm run electron:build
 ```
 
 生成物:
 
 | 成果物 | パス |
 |--------|------|
-| 実行ファイル | `src-tauri/target/release/rust-image-viewer.exe` |
-| MSI インストーラ | `src-tauri/target/release/bundle/msi/Rust Image Viewer_1.0.0_x64_en-US.msi` |
-| NSIS インストーラ | `src-tauri/target/release/bundle/nsis/Rust Image Viewer_1.0.0_x64-setup.exe` |
-
-開発時は `npm run tauri dev` でホットリロード開発が可能です。
+| ポータブル版 | `release/Rust Image Viewer 1.0.0.exe` |
 
 ## 対応画像形式
 
 | 形式 | 拡張子 | 備考 |
 |------|--------|------|
-| JPEG | `.jpg` `.jpeg` | Rust 側でリサイズ |
-| PNG | `.png` | Rust 側でリサイズ |
-| BMP | `.bmp` | Rust 側でリサイズ |
+| JPEG | `.jpg` `.jpeg` | sharp でリサイズ |
+| PNG | `.png` | sharp でリサイズ |
+| BMP | `.bmp` | sharp でリサイズ |
 | WebP | `.webp` | ブラウザネイティブ表示 |
 | AVIF | `.avif` | ブラウザネイティブ表示 |
 | GIF | `.gif` | ブラウザネイティブ表示 |
@@ -41,8 +43,8 @@ npm run tauri build
 ## 対応ソース
 
 - **フォルダ**: 指定したディレクトリ以下を再帰的に走査
-- **ZIP アーカイブ**: `.zip` ファイル内の画像を直接読み込み
-- **RAR アーカイブ**: `.rar` ファイル内の画像を直接読み込み
+- **ZIP アーカイブ**: `.zip` / `.cbz` ファイル内の画像を直接読み込み
+- **RAR アーカイブ**: `.rar` ファイル内の画像を直接読み込み（未対応）
 
 いずれもファイル名を自然順（numerical sort）で並び替えます（例: `1.jpg, 2.jpg, 10.jpg, 100.jpg`）。
 
@@ -55,8 +57,8 @@ npm run tauri build
 | ドラッグ＆ドロップ | アプリ内にフォルダ/ZIP/RAR をドロップ |
 | クリックでフォルダ選択 | ドロップゾーンをクリックしてフォルダ選択ダイアログを開く |
 | アーカイブ選択 | ドロップゾーンの「アーカイブ選択」リンクから ZIP/RAR ファイルを選択 |
-| exe に D&D | `rust-image-viewer.exe` にファイルをドロップして起動 |
-| コマンドライン | `rust-image-viewer.exe "path/to/file.zip"` |
+| exe に D&D | `Rust Image Viewer.exe` にファイルをドロップして起動 |
+| コマンドライン | `"Rust Image Viewer.exe" "path/to/file.zip"` |
 
 ### ページ操作
 
@@ -136,32 +138,30 @@ npm run tauri build
 │  Utils:                                         │
 │  └── keyCombo             キー組み合わせの構築・表示 │
 └────────────────────┬────────────────────────────┘
-                     │ Tauri IPC
+                     │ Electron IPC
 ┌────────────────────▼────────────────────────────┐
-│                 Rust Backend                    │
-│  commands/                                      │
-│  ├── file_loader         フォルダ/ZIP/RAR 列挙  │
-│  ├── image_provider      画像読込・リサイズ      │
-│  └── settings            設定の永続化            │
-│  archive/                                       │
-│  ├── zip_handler         ZIP 読み込み           │
-│  └── rar_handler         RAR 読み込み           │
-│  models/                                        │
-│  ├── image_entry         データモデル            │
-│  └── settings            設定スキーマ            │
+│              Electron Backend                   │
+│  main.ts              ウィンドウ・IPC 登録       │
+│  preload.js           レンダラ↔メイン橋渡し      │
+│  handlers/                                      │
+│  ├── fileLoader        フォルダ/ZIP 列挙         │
+│  ├── imageProvider     画像読込・sharp リサイズ   │
+│  └── settings          設定の永続化              │
 │  utils/                                         │
-│  └── sorter               自然順ソート           │
+│  ├── zipHandler        ZIP 読み込み             │
+│  └── naturalSort       自然順ソート              │
 └─────────────────────────────────────────────────┘
 ```
 
 ## 主な設計方針
 
-- **サーバーサイドリサイズ**: 画像は Rust 側でビューポートに合わせてリサイズ（デフォルトは CatmullRom、設定で変更可能）してから転送し、メモリ・帯域を節約
-- **AVIF/WebP/GIF のパススルー**: これらの形式は Rust 側でデコードせず raw データをブラウザに直接渡し、WebView2 のネイティブデコーダを活用
+- **サーバーサイドリサイズ**: 画像は Electron 側で sharp を用いてビューポートに合わせてリサイズ（デフォルトは CatmullRom、設定で変更可能）してから転送し、メモリ・帯域を節約
+- **高 DPI 対応**: `devicePixelRatio` を反映した物理ピクセルサイズでリサイズし、最大化・フルスクリーン時も鮮明に表示
+- **AVIF/WebP/GIF のパススルー**: これらの形式は Electron 側でデコードせず raw データをブラウザに直接渡し、Chromium のネイティブデコーダを活用
 - **先読みキャッシュ**: 現在のページの前後を非同期で先読みし、スムーズなページ送りを実現（先読み枚数は設定可能）
 - **世代管理**: 非同期画像取得に世代カウンターを用い、古いリクエストの結果は破棄して表示崩れを防止
 - **入力スロットリング**: キーボード・マウスホイールのスロットリング間隔を設定可能にし、操作詰まりを防止
 - **全画面切替の即時追従**: キャッシュを無効化しつつ古い画像は表示し続け、新しい解像度の画像取得後にシームレスに差し替え
 - **見開き表示の最適化**: 左画像を右寄せ・右画像を左寄せに配置し、綴じ目での隙間を解消
-- **設定の後方互換性**: `#[serde(default)]` により、新しいバージョンでフィールドが追加されても古い設定ファイルを壊さない
-- **CSP 有効化**: Content Security Policy により XSS 攻撃を防止
+- **設定の後方互換性**: デフォルト値をマージして読み込むため、新しいバージョンでフィールドが追加されても古い設定ファイルを壊さない
+- **CSP 有効化**: Content Security Policy により XSS 攻撃を防止（Tauri 版の仕様、Electron 版では contextIsolation により保護）

@@ -1,5 +1,4 @@
 import { ref, readonly } from "vue";
-import { invoke } from "@tauri-apps/api/core";
 import type { AppSettings } from "../types";
 
 const settings = ref<AppSettings>(createDefaults());
@@ -28,7 +27,7 @@ function createDefaults(): AppSettings {
 export function useSettings() {
   async function load(): Promise<AppSettings> {
     try {
-      const s = await invoke<AppSettings>("load_settings");
+      const s = await window.electronAPI.loadSettings();
       settings.value = s;
       return s;
     } catch {
@@ -39,7 +38,7 @@ export function useSettings() {
   }
 
   async function save(s: AppSettings) {
-    await invoke("save_settings", { settings: s });
+    await window.electronAPI.saveSettings(s);
     settings.value = s;
   }
 

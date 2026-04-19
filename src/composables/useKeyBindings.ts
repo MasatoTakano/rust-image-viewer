@@ -1,5 +1,4 @@
 import { onMounted, onUnmounted } from "vue";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { KeyBindings } from "../types";
 import { usePageController } from "./usePageController";
 import { useImageStore } from "./useImageStore";
@@ -37,15 +36,14 @@ export function useKeyBindings() {
     fn();
   }
 
-  function matchesBinding(combo: string, bindings: string[]): boolean {
+  function matchesBinding(combo: string, bindings: readonly string[]): boolean {
     return bindings.some((b) => combo === b || combo.endsWith("+" + b));
   }
 
   async function toggleFullscreen() {
     try {
-      const appWindow = getCurrentWindow();
-      const is = await appWindow.isFullscreen();
-      await appWindow.setFullscreen(!is);
+      const is = await window.electronAPI.isFullscreen();
+      await window.electronAPI.setFullscreen(!is);
       setFullscreen(!is);
       refreshInBackground(currentIndex.value);
     } catch (error) {

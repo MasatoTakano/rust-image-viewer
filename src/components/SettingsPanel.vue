@@ -26,45 +26,49 @@
         </table>
         <h3 class="section-title">表示</h3>
         <table>
-          <tr>
-            <td>背景色</td>
-            <td>
-              <input type="color" v-model="bgColor" />
-            </td>
-          </tr>
+          <tbody>
+            <tr>
+              <td>背景色</td>
+              <td>
+                <input type="color" v-model="bgColor" />
+              </td>
+            </tr>
+          </tbody>
         </table>
         <h3 class="section-title">動作</h3>
         <table>
-          <tr>
-            <td>先読み枚数</td>
-            <td>
-              <input type="number" v-model.number="preloadRange" min="0" max="50" />
-            </td>
-          </tr>
-          <tr>
-            <td>キー反応間隔 (ms)</td>
-            <td>
-              <input type="number" v-model.number="keyThrottleMs" min="0" max="1000" />
-            </td>
-          </tr>
-          <tr>
-            <td>ホイール反応間隔 (ms)</td>
-            <td>
-              <input type="number" v-model.number="wheelThrottleMs" min="0" max="1000" />
-            </td>
-          </tr>
-          <tr>
-            <td>リサイズフィルタ</td>
-            <td>
-              <select v-model="resizeFilter">
-                <option value="nearest">Nearest (最高速)</option>
-                <option value="triangle">Triangle (高速)</option>
-                <option value="catmull_rom">CatmullRom (バランス)</option>
-                <option value="gaussian">Gaussian (高画質)</option>
-                <option value="lanczos3">Lanczos3 (最高画質)</option>
-              </select>
-            </td>
-          </tr>
+          <tbody>
+            <tr>
+              <td>先読み枚数</td>
+              <td>
+                <input type="number" v-model.number="preloadRange" min="0" max="50" />
+              </td>
+            </tr>
+            <tr>
+              <td>キー反応間隔 (ms)</td>
+              <td>
+                <input type="number" v-model.number="keyThrottleMs" min="0" max="1000" />
+              </td>
+            </tr>
+            <tr>
+              <td>ホイール反応間隔 (ms)</td>
+              <td>
+                <input type="number" v-model.number="wheelThrottleMs" min="0" max="1000" />
+              </td>
+            </tr>
+            <tr>
+              <td>リサイズフィルタ</td>
+              <td>
+                <select v-model="resizeFilter">
+                  <option value="nearest">Nearest (最高速)</option>
+                  <option value="triangle">Triangle (高速)</option>
+                  <option value="catmull_rom">CatmullRom (バランス)</option>
+                  <option value="gaussian">Gaussian (高画質)</option>
+                  <option value="lanczos3">Lanczos3 (最高画質)</option>
+                </select>
+              </td>
+            </tr>
+          </tbody>
         </table>
         <div class="settings-actions">
           <button @click="close">閉じる</button>
@@ -145,17 +149,18 @@ function close() {
 }
 
 async function handleSave() {
-  const newSettings: AppSettings = {
-    ...settings.value,
+  const newSettings = {
     key_bindings: { ...bindings.value },
     background_color: bgColor.value,
     preload_range: preloadRange.value,
     key_throttle_ms: keyThrottleMs.value,
     wheel_throttle_ms: wheelThrottleMs.value,
     resize_filter: resizeFilter.value,
+    window_size: { width: window.innerWidth, height: window.innerHeight },
+    display_mode: "single",
   };
   try {
-    await save(newSettings);
+    await save(JSON.parse(JSON.stringify(newSettings)));
     emit("saved");
     emit("close");
     emit("notify", "設定を保存しました");

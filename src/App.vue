@@ -22,9 +22,6 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from "vue";
-import { listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import DropZone from "./components/DropZone.vue";
 import ImageViewer from "./components/ImageViewer.vue";
 import StatusBar from "./components/StatusBar.vue";
@@ -70,7 +67,7 @@ function onSettingsSaved() {
 
 async function toggleSettings() {
   if (isFullscreen.value) {
-    try { await getCurrentWindow().setFullscreen(false); } catch {}
+    try { await window.electronAPI.setFullscreen(false); } catch {}
     setFullscreen(false);
   }
   settingsVisible.value = !settingsVisible.value;
@@ -93,7 +90,7 @@ function onSaveState() {
     window_size: { width: window.innerWidth, height: window.innerHeight },
     display_mode: displayMode.value,
   };
-  invoke("save_settings", { settings: newSettings }).catch(() => {});
+  window.electronAPI.saveSettings(newSettings).catch(() => {});
 }
 
 onMounted(async () => {
@@ -105,11 +102,7 @@ onMounted(async () => {
   }
 
   try {
-    const { LogicalSize } = await import("@tauri-apps/api/dpi");
-    await getCurrentWindow().setSize(new LogicalSize(
-      s.window_size.width,
-      s.window_size.height,
-    ));
+    await window.electronAPI.setWindowSize(s.window_size.width, s.window_size.height);
   } catch {}
 
   setOnToggleSettings(toggleSettings);
@@ -118,10 +111,9 @@ onMounted(async () => {
 
   window.addEventListener("beforeunload", onSaveState);
 
-  unlistenCli = await listen<string>("cli-file-open", async (event) => {
-    const path = event.payload;
+  unlistenCli = window.electronAPI.onCliFileOpen(async (filePath) => {
     try {
-      const entries = await invoke<ImageEntry[]>("load_source", { path });
+      const entries = await window.electronAPI.loadSource(filePath);
       if (entries.length > 0) {
         onLoaded(entries);
       } else {

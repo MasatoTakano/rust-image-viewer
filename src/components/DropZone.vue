@@ -5,7 +5,7 @@
     @click="openDialog"
   >
     <div class="drop-message">
-      <p>フォルダ、ZIP、RAR ファイルをドラッグ＆ドロップしてください</p>
+      <p>フォルダ、ZIP ファイルをドラッグ＆ドロップしてください</p>
       <p class="hint">クリックでフォルダ選択 / <button class="link-btn" @click.stop="openArchiveDialog">アーカイブ選択</button></p>
       <p class="hint">Esc で設定画面を開く</p>
     </div>
@@ -14,9 +14,6 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
-import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
-import { listen } from "@tauri-apps/api/event";
 import type { ImageEntry } from "../types";
 
 const emit = defineEmits<{
@@ -26,9 +23,9 @@ const emit = defineEmits<{
 
 const isDragOver = ref(false);
 
-async function loadFromPath(path: string) {
+async function loadFromPath(p: string) {
   try {
-    const entries = await invoke<ImageEntry[]>("load_source", { path });
+    const entries = await window.electronAPI.loadSource(p);
     if (entries.length === 0) {
       emit("notify", "画像ファイルが見つかりませんでした");
       return;
@@ -41,13 +38,13 @@ async function loadFromPath(path: string) {
 
 async function openDialog() {
   try {
-    const selected = await open({
+    const selected = await window.electronAPI.openDialog({
       directory: true,
       multiple: false,
       title: "画像フォルダを選択",
     });
     if (selected) {
-      await loadFromPath(selected as string);
+      await loadFromPath(selected);
     }
   } catch {
     emit("notify", "ファイルダイアログを開けません");
@@ -56,51 +53,26 @@ async function openDialog() {
 
 async function openArchiveDialog() {
   try {
-    const selected = await open({
+    const selected = await window.electronAPI.openDialog({
       multiple: false,
       title: "アーカイブファイルを選択",
       filters: [
-        { name: "アーカイブ", extensions: ["zip", "rar", "cbz", "cbr"] },
+        { name: "アーカイブ", extensions: ["zip", "cbz"] },
       ],
     });
     if (selected) {
-      await loadFromPath(selected as string);
+      await loadFromPath(selected);
     }
   } catch {
     emit("notify", "ファイルダイアログを開けません");
   }
 }
 
-function onDragOver(e: DragEvent) {
-  e.preventDefault();
-  e.stopPropagation();
-  isDragOver.value = true;
-}
-
-function onDragLeave(e: DragEvent) {
-  e.preventDefault();
-  e.stopPropagation();
-  isDragOver.value = false;
-}
-
-let unlisten: (() => void) | null = null;
-
-onMounted(async () => {
-  document.addEventListener("dragover", onDragOver);
-  document.addEventListener("dragleave", onDragLeave);
-
-  unlisten = await listen<{ paths: string[] }>("tauri://drag-drop", async (event) => {
-    const paths = event.payload.paths;
-    if (paths.length > 0) {
-      await loadFromPath(paths[0]);
-    }
+onMounted(() => {
+  window.electronAPI.onFileDropped((p: string) => loadFromPath(p));
+  window.electronAPI.onDragStateChanged((over: boolean) => {
+    isDragOver.value = over;
   });
-});
-
-onUnmounted(() => {
-  document.removeEventListener("dragover", onDragOver);
-  document.removeEventListener("dragleave", onDragLeave);
-  unlisten?.();
 });
 </script>
 

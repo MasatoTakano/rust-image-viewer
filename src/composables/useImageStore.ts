@@ -1,6 +1,5 @@
-import { ref, readonly } from "vue";
-import { invoke } from "@tauri-apps/api/core";
-import type { ImageEntry, ImageResult } from "../types";
+import { ref, readonly, toRaw } from "vue";
+import type { ImageEntry } from "../types";
 import { useSettings } from "./useSettings";
 
 const PAGE_SLIDER_HEIGHT = 28;
@@ -38,12 +37,13 @@ export function useImageStore() {
     const gen = cacheGeneration;
     const promise = (async () => {
       try {
-        const result = await invoke<ImageResult>("get_image", {
-          entry,
-          maxWidth: window.innerWidth,
-          maxHeight: window.innerHeight - UI_OVERHEAD_HEIGHT,
-          filterType: settings.value.resize_filter,
-        });
+        const dpr = window.devicePixelRatio || 1;
+        const result = await window.electronAPI.getImage(
+          toRaw(entry),
+          Math.round(window.innerWidth * dpr),
+          Math.round((window.innerHeight - UI_OVERHEAD_HEIGHT) * dpr),
+          settings.value.resize_filter,
+        );
         if (gen === cacheGeneration) {
           cache.set(index, result.data_url);
         }

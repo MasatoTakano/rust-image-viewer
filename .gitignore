@@ -3,10 +3,14 @@ node_modules/
 
 # Build output
 dist/
+dist-electron/
 
 # Tauri / Rust
 src-tauri/target/
 src-tauri/gen/
+
+# Electron
+release/
 
 # OS files
 Thumbs.db
