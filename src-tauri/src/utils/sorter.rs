@@ -38,20 +38,12 @@ pub enum NaturalSegment {
 
 /// パス文字列のスライスを自然順でソートする
 pub fn sort_paths_naturally(paths: &mut [String]) {
-    paths.sort_by(|a, b| {
-        let key_a = natural_sort_key(a);
-        let key_b = natural_sort_key(b);
-        key_a.cmp(&key_b)
-    });
+    paths.sort_by_cached_key(|s| natural_sort_key(s));
 }
 
 /// (path, display_name) タプルのスライスを path の自然順でソートする
 pub fn sort_entries_by_path(entries: &mut [(String, String)]) {
-    entries.sort_by(|a, b| {
-        let key_a = natural_sort_key(&a.0);
-        let key_b = natural_sort_key(&b.0);
-        key_a.cmp(&key_b)
-    });
+    entries.sort_by_cached_key(|(path, _)| natural_sort_key(path));
 }
 
 #[cfg(test)]

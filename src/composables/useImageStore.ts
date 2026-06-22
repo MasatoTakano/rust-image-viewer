@@ -2,10 +2,13 @@ import { ref, readonly } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import type { ImageEntry, ImageResult } from "../types";
 import { useSettings } from "./useSettings";
+import { useFullscreen } from "./useFullscreen";
 
 const PAGE_SLIDER_HEIGHT = 28;
 const STATUS_BAR_HEIGHT = 28;
 const UI_OVERHEAD_HEIGHT = PAGE_SLIDER_HEIGHT + STATUS_BAR_HEIGHT;
+const MAX_DEVICE_PIXEL_RATIO = 2;
+const MAX_CACHE_SIZE = 30;
 
 const entries = ref<ImageEntry[]>([]);
 const cache = new Map<number, string>();
@@ -14,11 +17,30 @@ let cacheGeneration = 0;
 
 export function useImageStore() {
   const { settings } = useSettings();
+  const { isFullscreen } = useFullscreen();
 
   function setEntries(list: ImageEntry[]) {
     entries.value = list;
     cache.clear();
     cacheGeneration++;
+  }
+
+  function trimCache(centerIndex: number) {
+    if (cache.size <= MAX_CACHE_SIZE) return;
+    const keys = Array.from(cache.keys());
+    keys.sort((a, b) => Math.abs(b - centerIndex) - Math.abs(a - centerIndex));
+    for (let i = 0; cache.size > MAX_CACHE_SIZE && i < keys.length; i++) {
+      cache.delete(keys[i]);
+    }
+  }
+
+  function getMaxViewport(): { maxWidth: number; maxHeight: number } {
+    const dpr = Math.min(window.devicePixelRatio || 1, MAX_DEVICE_PIXEL_RATIO);
+    const overhead = isFullscreen.value ? 0 : UI_OVERHEAD_HEIGHT;
+    return {
+      maxWidth: Math.floor(window.innerWidth * dpr),
+      maxHeight: Math.floor((window.innerHeight - overhead) * dpr),
+    };
   }
 
   async function getImage(index: number): Promise<string | null> {
@@ -27,7 +49,9 @@ export function useImageStore() {
     const cached = cache.get(index);
     if (cached) return cached;
 
-    return fetchAndCache(index);
+    const result = await fetchAndCache(index);
+    trimCache(index);
+    return result;
   }
 
   async function fetchAndCache(index: number): Promise<string | null> {
@@ -36,13 +60,13 @@ export function useImageStore() {
 
     const entry = entries.value[index];
     const gen = cacheGeneration;
+    const { maxWidth, maxHeight } = getMaxViewport();
     const promise = (async () => {
       try {
         const result = await invoke<ImageResult>("get_image", {
           entry,
-          maxWidth: window.innerWidth,
-          maxHeight: window.innerHeight - UI_OVERHEAD_HEIGHT,
-          filterType: settings.value.resize_filter,
+          maxWidth,
+          maxHeight,
         });
         if (gen === cacheGeneration) {
           cache.set(index, result.data_url);
@@ -82,6 +106,8 @@ export function useImageStore() {
         fetchAndCache(i).catch(() => {});
       }
     }
+
+    trimCache(index);
   }
 
   function refreshInBackground(index: number) {

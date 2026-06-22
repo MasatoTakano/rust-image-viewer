@@ -14,30 +14,14 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
-import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { listen } from "@tauri-apps/api/event";
-import type { ImageEntry } from "../types";
 
 const emit = defineEmits<{
-  loaded: [entries: ImageEntry[]];
+  "path-selected": [path: string];
   notify: [message: string];
 }>();
 
 const isDragOver = ref(false);
-
-async function loadFromPath(path: string) {
-  try {
-    const entries = await invoke<ImageEntry[]>("load_source", { path });
-    if (entries.length === 0) {
-      emit("notify", "画像ファイルが見つかりませんでした");
-      return;
-    }
-    emit("loaded", entries);
-  } catch (error) {
-    emit("notify", `読み込みエラー: ${error}`);
-  }
-}
 
 async function openDialog() {
   try {
@@ -47,7 +31,7 @@ async function openDialog() {
       title: "画像フォルダを選択",
     });
     if (selected) {
-      await loadFromPath(selected as string);
+      emit("path-selected", selected as string);
     }
   } catch {
     emit("notify", "ファイルダイアログを開けません");
@@ -64,7 +48,7 @@ async function openArchiveDialog() {
       ],
     });
     if (selected) {
-      await loadFromPath(selected as string);
+      emit("path-selected", selected as string);
     }
   } catch {
     emit("notify", "ファイルダイアログを開けません");
@@ -83,24 +67,14 @@ function onDragLeave(e: DragEvent) {
   isDragOver.value = false;
 }
 
-let unlisten: (() => void) | null = null;
-
-onMounted(async () => {
+onMounted(() => {
   document.addEventListener("dragover", onDragOver);
   document.addEventListener("dragleave", onDragLeave);
-
-  unlisten = await listen<{ paths: string[] }>("tauri://drag-drop", async (event) => {
-    const paths = event.payload.paths;
-    if (paths.length > 0) {
-      await loadFromPath(paths[0]);
-    }
-  });
 });
 
 onUnmounted(() => {
   document.removeEventListener("dragover", onDragOver);
   document.removeEventListener("dragleave", onDragLeave);
-  unlisten?.();
 });
 </script>
 

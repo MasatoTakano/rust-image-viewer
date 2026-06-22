@@ -2,7 +2,7 @@
   <div id="app" :style="{ backgroundColor: settings.settings.value.background_color }">
     <DropZone
       v-if="!hasEntries"
-      @loaded="onLoaded"
+      @path-selected="loadFromPath"
       @notify="showNotification"
     />
     <template v-else>
@@ -37,9 +37,10 @@ import { useSettings } from "./composables/useSettings";
 import { useKeyBindings } from "./composables/useKeyBindings";
 import { useFullscreen } from "./composables/useFullscreen";
 import { usePageController } from "./composables/usePageController";
+import { useDragDrop } from "./composables/useDragDrop";
 
 const { entries, setEntries, preloadAround } = useImageStore();
-const { setDisplayMode, displayMode } = usePageController();
+const { setDisplayMode, displayMode, resetIndex } = usePageController();
 const settings = useSettings();
 const { setKeyBindings, setOnToggleSettings, setSettingsOpenChecker } = useKeyBindings();
 const { isFullscreen, setFullscreen } = useFullscreen();
@@ -61,8 +62,11 @@ function showNotification(msg: string) {
 
 function onLoaded(list: ImageEntry[]) {
   setEntries(list);
+  resetIndex();
   preloadAround(0);
 }
+
+const { start: startDragDrop, loadFromPath } = useDragDrop(onLoaded, showNotification);
 
 function onSettingsSaved() {
   setKeyBindings(settings.settings.value.key_bindings);
@@ -78,6 +82,7 @@ async function toggleSettings() {
 
 let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 let unlistenCli: (() => void) | null = null;
+let unlistenDragDrop: (() => void) | null = null;
 
 function onResize() {
   if (resizeTimer) clearTimeout(resizeTimer);
@@ -118,18 +123,10 @@ onMounted(async () => {
 
   window.addEventListener("beforeunload", onSaveState);
 
+  unlistenDragDrop = await startDragDrop();
+
   unlistenCli = await listen<string>("cli-file-open", async (event) => {
-    const path = event.payload;
-    try {
-      const entries = await invoke<ImageEntry[]>("load_source", { path });
-      if (entries.length > 0) {
-        onLoaded(entries);
-      } else {
-        showNotification("画像ファイルが見つかりませんでした");
-      }
-    } catch (error) {
-      showNotification(`読み込みエラー: ${error}`);
-    }
+    await loadFromPath(event.payload);
   });
 });
 
@@ -137,6 +134,7 @@ onUnmounted(() => {
   window.removeEventListener("resize", onResize);
   window.removeEventListener("beforeunload", onSaveState);
   unlistenCli?.();
+  unlistenDragDrop?.();
 });
 </script>
 

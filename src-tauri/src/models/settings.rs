@@ -16,16 +16,10 @@ pub struct AppSettings {
     pub wheel_throttle_ms: u32,
     #[serde(default = "default_display_mode")]
     pub display_mode: String,
-    #[serde(default = "default_resize_filter")]
-    pub resize_filter: String,
 }
 
 fn default_background_color() -> String {
     "#000000".to_string()
-}
-
-fn default_resize_filter() -> String {
-    "catmull_rom".to_string()
 }
 
 fn default_preload_range() -> u32 {
@@ -54,7 +48,6 @@ impl Default for AppSettings {
             key_throttle_ms: default_key_throttle_ms(),
             wheel_throttle_ms: default_wheel_throttle_ms(),
             display_mode: default_display_mode(),
-            resize_filter: default_resize_filter(),
         }
     }
 }

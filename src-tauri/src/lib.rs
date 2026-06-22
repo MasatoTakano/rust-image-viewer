@@ -11,7 +11,6 @@ pub fn run() {
     let cli_args: Vec<String> = std::env::args().skip(1).collect();
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             file_loader::load_source,

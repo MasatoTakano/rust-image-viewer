@@ -3,6 +3,11 @@ use std::path::Path;
 use crate::models::image_entry::is_supported_image_extension;
 use crate::utils::sorter::sort_entries_by_path;
 
+/// 列挙を許容する最大エントリ数
+const MAX_ENTRIES: usize = 10_000;
+/// 1エントリあたりの最大展開サイズ (100 MB)
+const MAX_ENTRY_SIZE: u64 = 100 * 1024 * 1024;
+
 pub fn enumerate_images(archive_path: &Path) -> Result<Vec<(String, String)>, String> {
     let archive = unrar::Archive::new(archive_path)
         .open_for_listing()
@@ -17,6 +22,16 @@ pub fn enumerate_images(archive_path: &Path) -> Result<Vec<(String, String)>, St
             continue;
         }
 
+        let entry_size = u64::from(entry.unpacked_size);
+        if entry_size > MAX_ENTRY_SIZE {
+            return Err(format!(
+                "エントリが大きすぎます ({}: {} bytes、上限 {} bytes)",
+                entry.filename.to_string_lossy(),
+                entry_size,
+                MAX_ENTRY_SIZE
+            ));
+        }
+
         let entry_path = entry.filename.to_string_lossy().to_string();
         let path = Path::new(&entry_path);
 
@@ -27,6 +42,13 @@ pub fn enumerate_images(archive_path: &Path) -> Result<Vec<(String, String)>, St
                 .unwrap_or(&entry_path)
                 .to_string();
             entries.push((entry_path, display_name));
+        }
+
+        if entries.len() > MAX_ENTRIES {
+            return Err(format!(
+                "RAR内のエントリ数が多すぎます (上限 {} 件)",
+                MAX_ENTRIES
+            ));
         }
     }
 
@@ -48,6 +70,13 @@ pub fn read_image_data(archive_path: &Path, entry_path: &str) -> Result<Vec<u8>,
         let filename = entry.filename.to_string_lossy().to_string();
 
         if filename == entry_path {
+            let entry_size = u64::from(entry.unpacked_size);
+            if entry_size > MAX_ENTRY_SIZE {
+                return Err(format!(
+                    "エントリが大きすぎます ({}: {} bytes、上限 {} bytes)",
+                    entry_path, entry_size, MAX_ENTRY_SIZE
+                ));
+            }
             let (data, _next) = archive_at_file
                 .read()
                 .map_err(|e| format!("RAR ファイル読み取りエラー: {}", e))?;

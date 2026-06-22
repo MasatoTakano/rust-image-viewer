@@ -5,14 +5,19 @@ import { useImageStore } from "./useImageStore";
 const currentIndex = ref(0);
 const displayMode = ref<DisplayMode>(DisplayMode.Single);
 
+let watchInitialized = false;
+
 export function usePageController() {
   const { entries, preloadAround } = useImageStore();
 
-  watch(currentIndex, (idx) => {
-    if (entries.value.length > 0) {
-      preloadAround(idx);
-    }
-  });
+  if (!watchInitialized) {
+    watch(currentIndex, (idx) => {
+      if (entries.value.length > 0) {
+        preloadAround(idx);
+      }
+    });
+    watchInitialized = true;
+  }
 
   function setPage(index: number) {
     if (entries.value.length === 0) return;

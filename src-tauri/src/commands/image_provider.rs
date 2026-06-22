@@ -6,6 +6,10 @@ use crate::models::image_entry::{ImageEntry, ImageSource};
 use base64::Engine;
 use image::ImageEncoder;
 
+/// 1画像あたりの最大 raw バイト数 (150 MB)
+/// アーカイブ展開後・デコード前の生データに対する制限
+const MAX_RAW_BYTES: usize = 150 * 1024 * 1024;
+
 #[derive(serde::Serialize)]
 pub struct ImageResult {
     pub data_url: String,
@@ -16,7 +20,6 @@ pub fn get_image(
     entry: ImageEntry,
     max_width: u32,
     max_height: u32,
-    filter_type: Option<String>,
 ) -> Result<ImageResult, String> {
     let raw_data = match &entry.source {
         ImageSource::FileSystem { path } => read_filesystem_image(path)?,
@@ -30,6 +33,14 @@ pub fn get_image(
         } => rar_handler::read_image_data(archive_path, entry_path)?,
     };
 
+    if raw_data.len() > MAX_RAW_BYTES {
+        return Err(format!(
+            "画像データが大きすぎます ({} bytes、上限 {} bytes)",
+            raw_data.len(),
+            MAX_RAW_BYTES
+        ));
+    }
+
     let display_name = &entry.display_name;
     let ext = Path::new(display_name)
         .extension()
@@ -37,43 +48,25 @@ pub fn get_image(
         .map(|e| e.to_lowercase())
         .unwrap_or_default();
 
-    if matches!(ext.as_str(), "avif" | "webp" | "gif") {
-        let mime = match ext.as_str() {
-            "avif" => "image/avif",
-            "webp" => "image/webp",
-            "gif" => "image/gif",
-            _ => "application/octet-stream",
-        };
+    // ブラウザネイティブ形式は常に元のバイト列をパススルーし、
+    // リサイズ/再エンコードによる品質低下を避けて GPU スケーリングに任せる。
+    let native_mime = match ext.as_str() {
+        "avif" => Some("image/avif"),
+        "webp" => Some("image/webp"),
+        "gif" => Some("image/gif"),
+        "jpg" | "jpeg" => Some("image/jpeg"),
+        "png" => Some("image/png"),
+        _ => None,
+    };
+
+    if let Some(mime) = native_mime {
         let b64 = base64::engine::general_purpose::STANDARD.encode(&raw_data);
         return Ok(ImageResult {
             data_url: format!("data:{};base64,{}", mime, b64),
         });
     }
 
-    if matches!(ext.as_str(), "jpg" | "jpeg") {
-        if let Some((w, h)) = get_jpeg_dimensions(&raw_data) {
-            if w <= max_width && h <= max_height {
-                let b64 = base64::engine::general_purpose::STANDARD.encode(&raw_data);
-                return Ok(ImageResult {
-                    data_url: format!("data:image/jpeg;base64,{}", b64),
-                });
-            }
-        }
-    }
-
-    if ext.as_str() == "png" {
-        if let Some((w, h)) = get_png_dimensions(&raw_data) {
-            if w <= max_width && h <= max_height {
-                let b64 = base64::engine::general_purpose::STANDARD.encode(&raw_data);
-                return Ok(ImageResult {
-                    data_url: format!("data:image/png;base64,{}", b64),
-                });
-            }
-        }
-    }
-
-    let data_url =
-        encode_image_to_data_url(&raw_data, max_width, max_height, filter_type.as_deref())?;
+    let data_url = encode_image_to_data_url(&raw_data, max_width, max_height)?;
     Ok(ImageResult { data_url })
 }
 
@@ -81,54 +74,19 @@ fn read_filesystem_image(path: &Path) -> Result<Vec<u8>, String> {
     std::fs::read(path).map_err(|e| format!("画像ファイルの読み取りに失敗: {}", e))
 }
 
-fn get_jpeg_dimensions(data: &[u8]) -> Option<(u32, u32)> {
-    if data.len() < 4 || data[0] != 0xFF || data[1] != 0xD8 {
-        return None;
-    }
-    let mut pos = 2usize;
-    while pos + 9 <= data.len() {
-        if data[pos] != 0xFF {
-            return None;
-        }
-        let marker = data[pos + 1];
-        pos += 2;
-        if marker == 0xDA {
-            return None;
-        }
-        if (0xC0..=0xCF).contains(&marker) && marker != 0xC4 && marker != 0xC8 && marker != 0xCC {
-            let height = ((data[pos + 3] as u32) << 8) | data[pos + 4] as u32;
-            let width = ((data[pos + 5] as u32) << 8) | data[pos + 6] as u32;
-            return Some((width, height));
-        }
-        let seg_len = ((data[pos] as usize) << 8) | data[pos + 1] as usize;
-        pos += seg_len;
-    }
-    None
-}
-
-fn get_png_dimensions(data: &[u8]) -> Option<(u32, u32)> {
-    if data.len() < 24 {
-        return None;
-    }
-    let sig: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-    if data[0..8] != sig {
-        return None;
-    }
-    if &data[12..16] != b"IHDR" {
-        return None;
-    }
-    let width = u32::from_be_bytes([data[16], data[17], data[18], data[19]]);
-    let height = u32::from_be_bytes([data[20], data[21], data[22], data[23]]);
-    Some((width, height))
-}
-
 fn encode_image_to_data_url(
     data: &[u8],
     max_width: u32,
     max_height: u32,
-    filter_name: Option<&str>,
 ) -> Result<String, String> {
-    let img = image::ImageReader::new(Cursor::new(data))
+    let mut limits = image::Limits::no_limits();
+    limits.max_image_width = Some(40_000);
+    limits.max_image_height = Some(40_000);
+    limits.max_alloc = Some(512 * 1024 * 1024);
+
+    let mut reader = image::ImageReader::new(Cursor::new(data));
+    reader.limits(limits);
+    let img = reader
         .with_guessed_format()
         .map_err(|e| format!("画像フォーマット検出エラー: {}", e))?
         .decode()
@@ -147,7 +105,12 @@ fn encode_image_to_data_url(
         let new_width = ((orig_width as f64) * scale) as u32;
         let new_height = ((orig_height as f64) * scale) as u32;
 
-        image::imageops::resize(&img, new_width, new_height, parse_filter(filter_name))
+        image::imageops::resize(
+            &img,
+            new_width,
+            new_height,
+            image::imageops::FilterType::CatmullRom,
+        )
     } else {
         img
     };
@@ -181,15 +144,4 @@ fn encode_image_to_data_url(
     };
 
     Ok(base64_str)
-}
-
-fn parse_filter(name: Option<&str>) -> image::imageops::FilterType {
-    match name.unwrap_or("catmull_rom") {
-        "nearest" => image::imageops::FilterType::Nearest,
-        "triangle" => image::imageops::FilterType::Triangle,
-        "catmull_rom" => image::imageops::FilterType::CatmullRom,
-        "gaussian" => image::imageops::FilterType::Gaussian,
-        "lanczos3" => image::imageops::FilterType::Lanczos3,
-        _ => image::imageops::FilterType::CatmullRom,
-    }
 }

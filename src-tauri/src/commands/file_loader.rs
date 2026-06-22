@@ -41,7 +41,7 @@ fn enumerate_folder(folder_path: &Path) -> Result<Vec<ImageEntry>, String> {
     let mut path_strings: Vec<String> = Vec::new();
 
     for entry in walkdir::WalkDir::new(folder_path)
-        .follow_links(true)
+        .follow_links(false)
         .into_iter()
         .filter_map(|e| e.ok())
     {
