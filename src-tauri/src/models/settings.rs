@@ -5,7 +5,7 @@ pub struct AppSettings {
     #[serde(default)]
     pub key_bindings: KeyBindings,
     #[serde(default)]
-    pub window_size: WindowSize,
+    pub window_state: WindowState,
     #[serde(default = "default_background_color")]
     pub background_color: String,
     #[serde(default = "default_preload_range")]
@@ -42,7 +42,7 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             key_bindings: KeyBindings::default(),
-            window_size: WindowSize::default(),
+            window_state: WindowState::default(),
             background_color: default_background_color(),
             preload_range: default_preload_range(),
             key_throttle_ms: default_key_throttle_ms(),
@@ -107,11 +107,26 @@ impl Default for KeyBindings {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WindowSize {
+pub struct WindowState {
+    #[serde(default)]
+    pub x: Option<i32>,
+    #[serde(default)]
+    pub y: Option<i32>,
     #[serde(default = "default_width")]
     pub width: u32,
     #[serde(default = "default_height")]
     pub height: u32,
+}
+
+impl Default for WindowState {
+    fn default() -> Self {
+        Self {
+            x: None,
+            y: None,
+            width: default_width(),
+            height: default_height(),
+        }
+    }
 }
 
 fn default_width() -> u32 {
@@ -121,11 +136,57 @@ fn default_height() -> u32 {
     900
 }
 
-impl Default for WindowSize {
-    fn default() -> Self {
-        Self {
-            width: default_width(),
-            height: default_height(),
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn window_state_default_position_none() {
+        let ws = WindowState::default();
+        assert_eq!(ws.x, None);
+        assert_eq!(ws.y, None);
+        assert_eq!(ws.width, 1280);
+        assert_eq!(ws.height, 900);
+    }
+
+    #[test]
+    fn deserialize_old_format_with_window_size() {
+        let old = r##"{
+            "key_bindings": { "next_page": ["ArrowLeft"], "prev_page": ["ArrowRight"], "toggle_fullscreen": ["Enter"], "toggle_spread": ["Space"], "go_first": ["Home"], "go_last": ["End"], "open_settings": ["Escape"] },
+            "window_size": { "width": 800, "height": 600 },
+            "background_color": "#111111",
+            "preload_range": 5,
+            "key_throttle_ms": 40,
+            "wheel_throttle_ms": 150,
+            "display_mode": "spread"
+        }"##;
+        let s: AppSettings = serde_json::from_str(old).expect("旧形式は前方互換で読み込めること");
+        assert_eq!(s.window_state.width, 1280);
+        assert_eq!(s.window_state.x, None);
+        assert_eq!(s.background_color, "#111111");
+        assert_eq!(s.display_mode, "spread");
+    }
+
+    #[test]
+    fn window_state_roundtrip() {
+        let ws = WindowState { x: Some(-100), y: Some(200), width: 800, height: 600 };
+        let json = serde_json::to_string(&ws).unwrap();
+        let back: WindowState = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.x, Some(-100));
+        assert_eq!(back.y, Some(200));
+        assert_eq!(back.width, 800);
+        assert_eq!(back.height, 600);
+    }
+
+    #[test]
+    fn app_settings_roundtrip_preserves_window_state() {
+        let s = AppSettings {
+            window_state: WindowState { x: Some(10), y: Some(20), width: 1000, height: 700 },
+            ..AppSettings::default()
+        };
+        let json = serde_json::to_string(&s).unwrap();
+        let back: AppSettings = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.window_state.x, Some(10));
+        assert_eq!(back.window_state.width, 1000);
     }
 }
