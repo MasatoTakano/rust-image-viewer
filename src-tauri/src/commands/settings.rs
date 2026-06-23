@@ -1,7 +1,7 @@
 use crate::models::settings::AppSettings;
 
 /// 設定ファイルのパスを取得する
-fn get_settings_path() -> Result<std::path::PathBuf, String> {
+pub(crate) fn get_settings_path() -> Result<std::path::PathBuf, String> {
     let config_dir =
         dirs::config_dir().ok_or_else(|| "設定ディレクトリのパスを取得できません".to_string())?;
     let app_dir = config_dir.join("rust-image-viewer");
@@ -10,9 +10,8 @@ fn get_settings_path() -> Result<std::path::PathBuf, String> {
     Ok(app_dir.join("settings.json"))
 }
 
-/// 設定を読み込む。ファイルが存在しない場合はデフォルト設定を返す
-#[tauri::command]
-pub fn load_settings() -> Result<AppSettings, String> {
+/// 設定をファイルから読み込む。ファイルが存在しない場合はデフォルト設定を返す
+pub(crate) fn read_settings_file() -> Result<AppSettings, String> {
     let path = get_settings_path()?;
 
     if !path.exists() {
@@ -32,15 +31,26 @@ pub fn load_settings() -> Result<AppSettings, String> {
     Ok(settings)
 }
 
-/// 設定を保存する
-#[tauri::command]
-pub fn save_settings(settings: AppSettings) -> Result<(), String> {
+/// 設定をファイルへ書き込む
+pub(crate) fn write_settings_file(settings: &AppSettings) -> Result<(), String> {
     let path = get_settings_path()?;
 
-    let content = serde_json::to_string_pretty(&settings)
+    let content = serde_json::to_string_pretty(settings)
         .map_err(|e| format!("設定のシリアライズに失敗: {}", e))?;
 
     std::fs::write(&path, content).map_err(|e| format!("設定ファイルの書き込みに失敗: {}", e))?;
 
     Ok(())
+}
+
+/// 設定を読み込むコマンド(フロントエンド向け)
+#[tauri::command]
+pub fn load_settings() -> Result<AppSettings, String> {
+    read_settings_file()
+}
+
+/// 設定を保存するコマンド(フロントエンド向け)
+#[tauri::command]
+pub fn save_settings(settings: AppSettings) -> Result<(), String> {
+    write_settings_file(&settings)
 }
