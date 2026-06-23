@@ -23,7 +23,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import { listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import DropZone from "./components/DropZone.vue";
 import ImageViewer from "./components/ImageViewer.vue";
@@ -40,7 +39,7 @@ import { usePageController } from "./composables/usePageController";
 import { useDragDrop } from "./composables/useDragDrop";
 
 const { entries, setEntries, preloadAround } = useImageStore();
-const { setDisplayMode, displayMode, resetIndex } = usePageController();
+const { setDisplayMode, resetIndex } = usePageController();
 const settings = useSettings();
 const { setKeyBindings, setOnToggleSettings, setSettingsOpenChecker } = useKeyBindings();
 const { isFullscreen, setFullscreen } = useFullscreen();
@@ -91,16 +90,6 @@ function onResize() {
   }, 50);
 }
 
-function onSaveState() {
-  const currentSettings = settings.settings.value;
-  const newSettings = {
-    ...currentSettings,
-    window_size: { width: window.innerWidth, height: window.innerHeight },
-    display_mode: displayMode.value,
-  };
-  invoke("save_settings", { settings: newSettings }).catch(() => {});
-}
-
 onMounted(async () => {
   const s = await settings.load();
   setKeyBindings(s.key_bindings);
@@ -109,19 +98,9 @@ onMounted(async () => {
     setDisplayMode(s.display_mode as DisplayMode);
   }
 
-  try {
-    const { LogicalSize } = await import("@tauri-apps/api/dpi");
-    await getCurrentWindow().setSize(new LogicalSize(
-      s.window_size.width,
-      s.window_size.height,
-    ));
-  } catch {}
-
   setOnToggleSettings(toggleSettings);
   setSettingsOpenChecker(() => settingsVisible.value);
   window.addEventListener("resize", onResize);
-
-  window.addEventListener("beforeunload", onSaveState);
 
   unlistenDragDrop = await startDragDrop();
 
@@ -132,7 +111,6 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener("resize", onResize);
-  window.removeEventListener("beforeunload", onSaveState);
   unlistenCli?.();
   unlistenDragDrop?.();
 });

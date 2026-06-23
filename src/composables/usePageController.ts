@@ -1,6 +1,7 @@
 import { ref, readonly, watch } from "vue";
-import { DisplayMode } from "../types";
+import { DisplayMode, type AppSettings } from "../types";
 import { useImageStore } from "./useImageStore";
+import { useSettings } from "./useSettings";
 
 const currentIndex = ref(0);
 const displayMode = ref<DisplayMode>(DisplayMode.Single);
@@ -9,6 +10,7 @@ let watchInitialized = false;
 
 export function usePageController() {
   const { entries, preloadAround } = useImageStore();
+  const { settings, save } = useSettings();
 
   if (!watchInitialized) {
     watch(currentIndex, (idx) => {
@@ -58,11 +60,24 @@ export function usePageController() {
     }
   }
 
+  async function persistDisplayMode() {
+    try {
+      const newSettings = {
+        ...(settings.value as AppSettings),
+        display_mode: displayMode.value,
+      };
+      await save(newSettings);
+    } catch {
+      // 保存失敗はユーザー操作に影響させないため無視
+    }
+  }
+
   function toggleDisplayMode() {
     displayMode.value =
       displayMode.value === DisplayMode.Single
         ? DisplayMode.Spread
         : DisplayMode.Single;
+    void persistDisplayMode();
   }
 
   function resetIndex() {

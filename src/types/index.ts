@@ -15,7 +15,7 @@ export interface ImageResult {
 
 export interface AppSettings {
   key_bindings: KeyBindings;
-  window_size: WindowSize;
+  window_state: WindowState;
   background_color: string;
   preload_range: number;
   key_throttle_ms: number;
@@ -33,7 +33,9 @@ export interface KeyBindings {
   open_settings: string[];
 }
 
-export interface WindowSize {
+export interface WindowState {
+  x: number | null;
+  y: number | null;
   width: number;
   height: number;
 }

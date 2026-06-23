@@ -15,7 +15,7 @@ function createDefaults(): AppSettings {
       go_last: ["End"],
       open_settings: ["Escape"],
     },
-    window_size: { width: 1280, height: 900 },
+    window_state: { x: null, y: null, width: 1280, height: 900 },
     background_color: "#000000",
     preload_range: 10,
     key_throttle_ms: 80,
