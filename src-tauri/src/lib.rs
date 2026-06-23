@@ -3,8 +3,8 @@ mod commands;
 mod models;
 mod utils;
 
-use commands::{file_loader, image_provider, settings as settings_cmd};
-use tauri::Emitter;
+use commands::{file_loader, image_provider, settings as settings_cmd, window_state};
+use tauri::{Emitter, Manager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -25,6 +25,18 @@ pub fn run() {
                 std::thread::spawn(move || {
                     std::thread::sleep(std::time::Duration::from_millis(500));
                     let _ = handle.emit("cli-file-open", path);
+                });
+            }
+
+            if let Some(window) = app.get_webview_window("main") {
+                if let Ok(s) = settings_cmd::read_settings_file() {
+                    window_state::restore_window_state(&window, &s);
+                }
+                let win = window.clone();
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { .. } = event {
+                        window_state::save_window_state(&win);
+                    }
                 });
             }
 
