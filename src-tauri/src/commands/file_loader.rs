@@ -7,10 +7,25 @@ use crate::utils::sorter::sort_paths_naturally;
 /// D&D されたパス（フォルダ/ZIP/RAR）から画像エントリリストを生成する
 #[tauri::command]
 pub fn load_source(path: String) -> Result<Vec<ImageEntry>, String> {
-    let input_path = Path::new(&path);
+    // [diag] 受け取ったパスの実体を記録（D&D での文字化け/破損調査用）
+    crate::diag_log(&format!(
+        "[diag] load_source received: len={} bytes={:?} codepoints={:X?}",
+        path.len(),
+        path.as_bytes(),
+        path.chars().map(|c| c as u32).collect::<Vec<_>>()
+    ));
+
+    // CP932変換等で `?` に化けたパスを救済する（lib.rs の cli 経路以外でも同一ロジックを適用）
+    let resolved = crate::resolve_ansi_corrupted_path(&path);
+    let input_path = Path::new(&resolved);
 
     if !input_path.exists() {
-        return Err(format!("パスが存在しません: {}", path));
+        crate::diag_log(&format!(
+            "[diag] exists()=false: len={} bytes={:?}",
+            resolved.len(),
+            resolved.as_bytes()
+        ));
+        return Err(format!("パスが存在しません: {}", resolved));
     }
 
     let entries = if input_path.is_dir() {
